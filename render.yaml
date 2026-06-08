@@ -1,0 +1,65 @@
+# Render Blueprint — deploys the whole app: managed Postgres + FastAPI backend
+# (Docker) + static React frontend. Connect this repo as a Blueprint in Render.
+# See DEPLOY.md for the step-by-step.
+#
+# Assumes the GitHub repo root is this `trading-ai/` directory.
+
+databases:
+  - name: trading-ai-db
+    plan: free
+    databaseName: tradingai
+    user: tradingai
+
+services:
+  # ---- Backend (FastAPI, Docker) ----
+  - type: web
+    name: trading-ai-backend
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    # Run migrations, then serve on the port Render assigns.
+    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trading-ai-db
+          property: connectionString
+      - key: SECRET_KEY        # encrypts users' Alpaca secrets — generated once, do not rotate
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY # set this in the dashboard (secret)
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-6
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ALPACA_BASE_URL   # paper host only — never live
+        value: https://paper-api.alpaca.markets
+      - key: CORS_ORIGINS      # allow the frontend origin (host -> https:// prepended)
+        fromService:
+          type: web
+          name: trading-ai-frontend
+          property: host
+
+  # ---- Frontend (Vite build -> static site) ----
+  - type: web
+    name: trading-ai-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_BASE_URL # backend host (client prepends https://)
+        fromService:
+          type: web
+          name: trading-ai-backend
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -1,0 +1,41 @@
+# Web framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+
+# Auth
+python-jose[cryptography]
+bcrypt
+email-validator
+cryptography
+
+# Database
+sqlalchemy
+psycopg[binary]
+alembic
+
+# AI / orchestration
+anthropic
+langgraph
+langchain-core
+
+# Market data (yfinance is the MVP data layer; Polygon/Finnhub/SEC-EDGAR are
+# future providers — add back when wired in)
+yfinance
+requests
+httpx
+
+# Analytics (numpy comes transitively via pandas/yfinance; scikit-learn is for
+# the future ML phase)
+pandas
+
+# Execution (paper trading)
+alpaca-py
+
+# Dev / test
+pytest
+pytest-asyncio
+ruff
+mypy
