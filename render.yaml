@@ -1,6 +1,5 @@
 # Render Blueprint — deploys the whole app: managed Postgres + FastAPI backend
 # (Docker) + static React frontend. Connect this repo as a Blueprint in Render.
-# See DEPLOY.md for the step-by-step.
 #
 # Assumes the GitHub repo root is this `trading-ai/` directory.
 

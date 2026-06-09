@@ -39,15 +39,7 @@ These decisions were made during planning and the rest of the docs assume them:
 
 1. **Execution via Alpaca paper trading, not a custom engine.** The original concept floated a custom paper-trading engine. We instead integrate Alpaca's free paper-trading API for realistic simulated fills, position tracking, and portfolio sync. This keeps the project focused on its differentiator — multi-agent research — while still demonstrating brokerage-API integration. A custom fill simulator is listed as an optional later enhancement. See `docs/06-data-sources.md`.
 2. **MVP-first, phased build.** The full vision (7 agents, options, AWS, backtesting, ML) is the destination, not the first deliverable. The roadmap in `docs/07-roadmap.md` defines a shippable core first and layers ambition on top.
-3. **Explainability is non-negotiable.** Every recommendation carries per-agent votes and a reasoning report. This is both a product goal and a great demo/interview talking point.
-
-## Target resume bullets
-
-These are the outcomes the project is built to support. Keep the build honest to them.
-
-> Built a multi-agent paper-trading platform using React, TypeScript, FastAPI, PostgreSQL, LangGraph, the Claude API, and AWS, generating simulated equity and options trade recommendations from technical, fundamental, sentiment, and options analysis.
-
-> Implemented portfolio risk management, holdings analysis, and backtesting pipelines calculating position sizing, Sharpe ratio, drawdown, benchmark-adjusted returns, and agent-voting confidence scores across hundreds of simulated trades and multiple investment strategies.
+3. **Explainability is non-negotiable.** Every recommendation carries per-agent votes and a reasoning report.
 
 ## What to read next
 
