@@ -39,11 +39,11 @@ services:
         value: INFO
       - key: ALPACA_BASE_URL   # paper host only — never live
         value: https://paper-api.alpaca.markets
-      - key: CORS_ORIGINS      # allow the frontend origin (host -> https:// prepended)
-        fromService:
-          type: web
-          name: trading-ai-frontend
-          property: host
+      # Set to the frontend's PUBLIC url after first deploy, e.g.
+      # https://trading-ai-frontend-xxxx.onrender.com (fromService host gives the
+      # internal hostname, which a browser can't use).
+      - key: CORS_ORIGINS
+        sync: false
 
   # ---- Frontend (Vite build -> static site) ----
   - type: web
@@ -53,11 +53,11 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     envVars:
-      - key: VITE_API_BASE_URL # backend host (client prepends https://)
-        fromService:
-          type: web
-          name: trading-ai-backend
-          property: host
+      # Set to the backend's PUBLIC url after first deploy, e.g.
+      # https://trading-ai-backend-xxxx.onrender.com (fromService host gives the
+      # internal hostname, which a browser can't use). Rebuild after changing.
+      - key: VITE_API_BASE_URL
+        sync: false
     routes:
       - type: rewrite
         source: /*
