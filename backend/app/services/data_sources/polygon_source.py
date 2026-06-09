@@ -55,8 +55,13 @@ class PolygonOptionsSource:
             )
             resp.raise_for_status()
             return resp.json()
+        except httpx.HTTPStatusError as exc:
+            # Never include the URL/apiKey in the message (it surfaces in the UI/logs).
+            code = exc.response.status_code
+            hint = " (options data needs a paid Polygon plan)" if code == 403 else ""
+            raise DataSourceError(f"polygon {path} returned HTTP {code}{hint}") from exc
         except Exception as exc:  # noqa: BLE001 - translate vendor/HTTP failure
-            raise DataSourceError(f"polygon request failed ({path}): {exc}") from exc
+            raise DataSourceError(f"polygon request to {path} failed") from exc
 
     def _spot(self, symbol: str) -> float:
         data = self._get_json(f"/v2/aggs/ticker/{symbol}/prev", {"adjusted": "true"})
