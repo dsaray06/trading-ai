@@ -1,8 +1,8 @@
 """Performance & risk metrics — pure, deterministic functions.
 
-The numbers an interviewer will scrutinize, so each is a small pure function with
-known closed-form behavior and unit tests (docs/07-roadmap.md Phase 5). All take
-plain sequences and return floats; no I/O, no global state.
+Each is a small pure function with known closed-form behavior and unit tests
+(docs/07-roadmap.md Phase 5). All take plain sequences and return floats; no I/O,
+no global state.
 
 Conventions: daily periodicity, 252 trading days/year, risk-free rate 0 unless
 provided. Returns are simple (not log) returns.

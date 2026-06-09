@@ -1,8 +1,6 @@
 # 07 — Build Roadmap (MVP-first)
 
-The destination is the full vision in `docs/00-overview.md`. The path is incremental: each phase is **shippable and demoable on its own**, and each builds on the last. Do not start a phase before the previous one runs end-to-end. This ordering also means the resume bullets become true progressively rather than all at the end.
-
-A good rule: always have a version you could screen-record for an interview.
+The destination is the full vision in `docs/00-overview.md`. The path is incremental: each phase is **shippable and demoable on its own**, and each builds on the last. Do not start a phase before the previous one runs end-to-end.
 
 ---
 
@@ -74,7 +72,7 @@ A good rule: always have a version you could screen-record for an interview.
 - Benchmarks: SPY/QQQ/VTI/custom; horizons: 1/3/5/10Y.
 - `POST /backtests`, results persisted; Backtesting tab renders equity curve + stats + strategy comparison.
 
-**Done when:** you can backtest a strategy over multiple horizons and compare against a benchmark — supporting the "across hundreds of simulated trades and multiple strategies" resume bullet.
+**Done when:** you can backtest a strategy over multiple horizons and compare against a benchmark.
 
 ---
 
@@ -89,7 +87,7 @@ A good rule: always have a version you could screen-record for an interview.
 
 ---
 
-## Future enhancements (post-resume, optional)
+## Future enhancements (optional)
 From the original concept — pursue only after the core is solid:
 - **ML models:** directional movement, volatility forecasting, trade-success probability, risk forecasting (XGBoost, Random Forest, LSTM, transformer time-series). Adds the scikit-learn/ML story.
 - **Portfolio optimization:** mean-variance, risk parity, Kelly-criterion sizing, volatility targeting.
@@ -98,6 +96,6 @@ From the original concept — pursue only after the core is solid:
 
 ## Sequencing advice
 - Keep each phase's PR set small and vertical.
-- Write the agent-scoring and backtest math as pure functions with unit tests — they're the parts most likely to be quietly wrong, and the most impressive to discuss in an interview.
+- Write the agent-scoring and backtest math as pure functions with unit tests — they're the parts most likely to be quietly wrong.
 - Update `docs/` in the same change whenever a contract changes.
 - Tag a git release at the end of each phase so you always have a working demo to show.
