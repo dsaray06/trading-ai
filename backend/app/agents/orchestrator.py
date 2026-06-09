@@ -25,6 +25,7 @@ from app.agents.trade_decision import decide
 from app.core.logging import get_logger
 from app.schemas.agents import AgentVote, TradeDecision
 from app.services.data_sources.base import (
+    DataSourceError,
     FundamentalsSource,
     NewsSource,
     OptionsSource,
@@ -83,6 +84,15 @@ def build_research_graph(
 
     def fundamental_node(state: ResearchState) -> dict:
         ticker = state["ticker"]
+        # ETFs/funds hold baskets of stocks and don't report company-level metrics
+        # (P/E, margins, ROE), so the Fundamental agent sits out by design.
+        if state.get("asset_type") == "etf":
+            return {"votes": [_abstain_vote(
+                "fundamental",
+                f"{ticker} is an ETF — company fundamentals like P/E and margins "
+                "don't apply to a basket fund, so the Fundamental agent sits this "
+                "one out. The recommendation leans on Market and Sentiment instead.",
+            )]}
         try:
             fundamentals = fundamentals_source.get_fundamentals(ticker)
             out = run_fundamental_agent(ticker, fundamentals)
@@ -96,6 +106,17 @@ def build_research_graph(
                     "metrics": out.peer_comparison.get("metrics", {}),
                 }},
             }
+        except DataSourceError as exc:
+            # No data is expected for ETFs, index funds, and some symbols — keep the
+            # message friendly instead of dumping each provider's raw failure.
+            logger.info("fundamental agent abstained (no data) for %s: %s", ticker, exc)
+            return {"votes": [_abstain_vote(
+                "fundamental",
+                f"No company fundamentals are published for {ticker}. This is normal "
+                "for ETFs, index funds, and some symbols, which don't report "
+                "company-level metrics like P/E or margins — so the Fundamental agent "
+                "sits this one out.",
+            )]}
         except Exception as exc:  # noqa: BLE001 - abstain instead of failing the run
             logger.warning("fundamental agent abstained for %s: %s", ticker, exc)
             return {"votes": [_abstain_vote("fundamental", f"Fundamentals unavailable: {exc}")]}

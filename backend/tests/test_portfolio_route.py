@@ -73,6 +73,29 @@ def test_full_accept_loop(db_session, monkeypatch):
         app.dependency_overrides.clear()
 
 
+def test_trade_preview_suggests_quantity(db_session, monkeypatch):
+    try:
+        client, headers = _auth_client(db_session, monkeypatch)
+        pf_id = client.post(
+            "/portfolios", json={"name": "Main", "starting_cash": 100000}, headers=headers
+        ).json()["id"]
+        rec = _make_rec(db_session, "AAPL", "Buy", 100.0)
+
+        r = client.get(
+            f"/portfolios/{pf_id}/trades/preview/{rec.id}", headers=headers
+        )
+        assert r.status_code == 200
+        p = r.json()
+        assert p["side"] == "buy" and p["symbol"] == "AAPL"
+        # 2% risk on $100k at $100 w/ default 8% stop -> 25 shares, capped affordable.
+        assert p["suggested_quantity"] > 0
+        assert p["estimated_cost"] == p["suggested_quantity"] * 100.0
+        assert 0 < p["pct_of_portfolio"] <= 100
+        assert "share" in p["note"]
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_portfolio_requires_auth(db_session, monkeypatch):
     try:
         app.dependency_overrides[get_db] = lambda: db_session

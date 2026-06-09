@@ -163,7 +163,7 @@ def _sync_from_alpaca(db: Session, pf: Portfolio, broker) -> None:
     pf.cash_balance = _dec(account.cash)
     pf.positions = [
         Position(
-            symbol=p.symbol, asset_type="stock", quantity=_dec(p.quantity),
+            symbol=p.symbol, asset_type=p.asset_type, quantity=_dec(p.quantity),
             avg_cost=_dec(p.avg_cost), current_price=_dec(p.current_price),
             unrealized_pl=_dec(p.unrealized_pl),
         )
@@ -268,30 +268,33 @@ def _accept_via_alpaca(
     symbol: str, side: str, is_option: bool, quantity: float | None,
     override_price: float | None, price_source: PriceDataSource, broker,
 ) -> Trade:
-    """Submit a real Alpaca paper order, then mirror the account into the portfolio."""
-    if is_option:
-        raise TradeRejected(
-            "Options paper trading isn't supported on Alpaca-linked portfolios — "
-            "use a simulated portfolio for options."
-        )
+    """Submit a real Alpaca paper order, then mirror the account into the portfolio.
+
+    Options route through the same market-order path using the OCC contract symbol;
+    they require options trading to be enabled on the user's Alpaca account.
+    """
     _sync_from_alpaca(db, pf, broker)  # fresh cash/positions before sizing
 
+    multiplier = _OPTION_MULTIPLIER if is_option else 1
     price = override_price or (float(rec.entry_target) if rec.entry_target else None)
     if not price or price <= 0:
+        if is_option:
+            raise TradeRejected(f"No premium available for option {symbol}")
         price = _latest_price(price_source, symbol)
     pos = next((p for p in pf.positions if p.symbol == symbol), None)
-    qty = _resolve_quantity(quantity, rec, side, price, pf, pos, 1, False)
+    qty = _resolve_quantity(quantity, rec, side, price, pf, pos, multiplier, is_option)
 
+    asset_type = "option" if is_option else "stock"
     try:
         fill = broker.submit_order(
-            OrderRequest(symbol=symbol, side=side, quantity=qty, asset_type="stock"),
+            OrderRequest(symbol=symbol, side=side, quantity=qty, asset_type=asset_type),
             reference_price=price,
         )
     except ExecutionError as exc:
         raise TradeRejected(f"Alpaca order rejected: {exc}") from exc
     trade = Trade(
         portfolio_id=pf.id, recommendation_id=recommendation_id, symbol=symbol,
-        asset_type="stock", side=side, quantity=_dec(fill.quantity),
+        asset_type=asset_type, side=side, quantity=_dec(fill.quantity),
         price=_dec(fill.price), alpaca_order_id=fill.order_id, status=fill.status,
     )
     db.add(trade)
@@ -303,39 +306,125 @@ def _accept_via_alpaca(
     return trade
 
 
-def _resolve_quantity(
-    quantity: float | None, rec: Recommendation, side: str, price: float,
-    pf: Portfolio, pos: Position | None, multiplier: int, is_option: bool,
+def _trade_side(action: str) -> str:
+    if action in _BUY_ACTIONS or action in _OPTION_BUY:
+        return "buy"
+    if action in _SELL_ACTIONS:
+        return "sell"
+    raise TradeRejected(f"'{action}' is not an executable trade")
+
+
+def preview_trade(
+    db: Session, pf: Portfolio, recommendation_id: UUID,
+    price_source: PriceDataSource, broker=None,
+) -> dict:
+    """Show what an auto-sized paper trade would look like before committing —
+    the suggested quantity, cost, and portfolio weight. Read-only (no order)."""
+    rec = db.get(Recommendation, recommendation_id)
+    if rec is None:
+        raise NotFound("Recommendation not found")
+
+    symbol = rec.symbol
+    side = _trade_side(rec.action)
+    is_option = rec.asset_type == "option"
+    multiplier = _OPTION_MULTIPLIER if is_option else 1
+    unit = "contract" if is_option else "share"
+
+    if pf.broker == "alpaca":
+        if broker is None:
+            raise PortfolioError("Connect your Alpaca account first.")
+        _sync_from_alpaca(db, pf, broker)  # fresh cash before sizing
+
+    price = float(rec.entry_target) if rec.entry_target else None
+    if not price or price <= 0:
+        if is_option:
+            raise TradeRejected(f"No premium available for option {symbol}")
+        price = _latest_price(price_source, symbol)
+
+    pos = next((p for p in pf.positions if p.symbol == symbol), None)
+    total_value = float(pf.cash_balance) + _positions_value(pf)
+
+    if side == "buy":
+        qty = _auto_buy_quantity(rec, price, pf, multiplier, is_option)
+        if qty <= 0:
+            note = f"Not enough cash to buy even one {unit}."
+        else:
+            note = (
+                f"Auto-sized to {int(qty)} {unit}{'s' if qty != 1 else ''}. "
+                "Enter a number to override."
+            )
+    else:
+        qty = float(pos.quantity) if pos else 0.0
+        note = (
+            f"Sell closes your {int(qty)}-{unit} position."
+            if qty > 0 else f"You have no {symbol} position to sell."
+        )
+
+    estimated_cost = round(qty * price * multiplier, 2)
+    pct = round(estimated_cost / total_value * 100.0, 2) if total_value > 0 else 0.0
+    return {
+        "side": side,
+        "symbol": symbol,
+        "asset_type": rec.asset_type,
+        "suggested_quantity": qty,
+        "price": round(price, 4),
+        "multiplier": multiplier,
+        "estimated_cost": estimated_cost,
+        "pct_of_portfolio": pct,
+        "cash_balance": round(float(pf.cash_balance), 2),
+        "note": note,
+    }
+
+
+def _auto_buy_quantity(
+    rec: Recommendation, price: float, pf: Portfolio, multiplier: int, is_option: bool,
 ) -> float:
-    if quantity is not None:
-        qty = float(quantity)
-    elif rec.position_size:
-        qty = float(rec.position_size)
-    elif side == "buy" and is_option:
-        qty = 1.0  # one contract by default
-    elif side == "buy":
+    """Suggested whole-unit buy size from the recommendation / risk model, capped by
+    available cash. Never raises (returns 0 when nothing is affordable). Shared by
+    execution sizing and the trade preview so the two never disagree."""
+    if rec.position_size:
+        desired = float(rec.position_size)
+    elif is_option:
+        desired = 1.0  # one contract by default
+    else:
         total_value = float(pf.cash_balance) + _positions_value(pf)
         sizing = position_size(
             price, total_value,
             stop_loss=float(rec.stop_loss) if rec.stop_loss else None,
             cash_available=float(pf.cash_balance),
         )
-        qty = max(1.0, sizing["shares"])
-    else:  # sell with no explicit qty -> close the position
-        qty = float(pos.quantity) if pos else 0.0
+        desired = max(1.0, sizing["shares"])
+    affordable = float(pf.cash_balance) // (price * multiplier)  # whole units
+    return max(0.0, min(float(int(desired)), affordable))
 
+
+def _resolve_quantity(
+    quantity: float | None, rec: Recommendation, side: str, price: float,
+    pf: Portfolio, pos: Position | None, multiplier: int, is_option: bool,
+) -> float:
     if side == "buy":
-        affordable = float(pf.cash_balance) // (price * multiplier)  # whole units
-        qty = min(float(int(qty)), affordable)
+        if quantity is not None:
+            affordable = float(pf.cash_balance) // (price * multiplier)
+            qty = min(float(int(quantity)), affordable)
+        else:
+            qty = _auto_buy_quantity(rec, price, pf, multiplier, is_option)
         if qty <= 0:
             raise TradeRejected("Insufficient cash for even one unit")
-    else:
-        held = float(pos.quantity) if pos else 0.0
-        if held <= 0:
-            raise TradeRejected(f"No position in {rec.symbol} to sell")
-        qty = min(float(int(qty)) if qty >= 1 else qty, held)
-        if qty <= 0:
-            raise TradeRejected("Sell quantity resolves to zero")
+        return qty
+
+    # sell
+    held = float(pos.quantity) if pos else 0.0
+    if held <= 0:
+        raise TradeRejected(f"No position in {rec.symbol} to sell")
+    if quantity is not None:
+        qty = float(quantity)
+    elif rec.position_size:
+        qty = float(rec.position_size)
+    else:  # sell with no explicit qty -> close the position
+        qty = held
+    qty = min(float(int(qty)) if qty >= 1 else qty, held)
+    if qty <= 0:
+        raise TradeRejected("Sell quantity resolves to zero")
     return qty
 
 

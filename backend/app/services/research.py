@@ -21,9 +21,6 @@ from app.schemas.research import (
     RecommendationResponse,
     ResearchRequest,
 )
-from app.services import alpaca_credentials
-from app.services.data_sources.alpaca_options_source import AlpacaOptionsSource
-from app.services.data_sources.alpaca_price_source import AlpacaPriceSource
 from app.services.data_sources.base import (
     FundamentalsSource,
     NewsSource,
@@ -33,20 +30,16 @@ from app.services.data_sources.base import (
 from app.services.data_sources.chained import (
     ChainedFundamentalsSource,
     ChainedNewsSource,
-    ChainedOptionsSource,
-    ChainedPriceSource,
 )
 from app.services.data_sources.finnhub_source import (
     FinnhubFundamentalsSource,
     FinnhubNewsSource,
 )
-from app.services.data_sources.polygon_source import PolygonOptionsSource
 from app.services.data_sources.yfinance_source import (
     YFinanceFundamentalsSource,
     YFinanceNewsSource,
-    YFinanceOptionsSource,
-    YFinancePriceSource,
 )
+from app.services.market_data import options_source_for, price_source_for
 
 logger = get_logger(__name__)
 
@@ -66,44 +59,6 @@ def _default_news_source() -> NewsSource:
     if get_settings().finnhub_api_key:
         return ChainedNewsSource([FinnhubNewsSource(), YFinanceNewsSource()])
     return YFinanceNewsSource()
-
-
-def _alpaca_data_creds(db: Session, user: User | None) -> tuple[str, str] | None:
-    """Alpaca keys for market data: a connected user's own keys if present, else
-    the server-wide key from settings. Alpaca's IEX feed + indicative options work
-    with any single account's keys (like Finnhub), so one server key set in env
-    powers prices + options for everyone — no per-user connection required."""
-    if user is not None:
-        creds = alpaca_credentials.raw_credentials(db, user)
-        if creds:
-            return creds
-    settings = get_settings()
-    if settings.alpaca_api_key and settings.alpaca_api_secret:
-        return settings.alpaca_api_key, settings.alpaca_api_secret
-    return None
-
-
-def _price_source_for(db: Session, user: User | None) -> PriceDataSource:
-    """Alpaca daily bars first (works on cloud IPs), yfinance fallback (works
-    locally). yfinance's price endpoint is blocked from Render's datacenter IPs,
-    so the Alpaca key is what keeps the Market agent alive in production."""
-    creds = _alpaca_data_creds(db, user)
-    if creds:
-        return ChainedPriceSource([AlpacaPriceSource(*creds), YFinancePriceSource()])
-    return YFinancePriceSource()
-
-
-def _options_source_for(db: Session, user: User | None) -> OptionsSource:
-    """Best available options chain: Alpaca (free indicative feed, cloud-friendly),
-    then Polygon (if keyed), then yfinance (works locally)."""
-    sources: list[OptionsSource] = []
-    creds = _alpaca_data_creds(db, user)
-    if creds:
-        sources.append(AlpacaOptionsSource(*creds))
-    if get_settings().polygon_api_key:
-        sources.append(PolygonOptionsSource())
-    sources.append(YFinanceOptionsSource())
-    return sources[0] if len(sources) == 1 else ChainedOptionsSource(sources)
 
 
 class ResearchError(RuntimeError):
@@ -138,10 +93,10 @@ def run_research(
     decision, analysis = run_pipeline(
         ticker,
         request.asset_type,
-        price_source or _price_source_for(db, user),
+        price_source or price_source_for(db, user),
         fundamentals_source or _default_fundamentals_source(),
         news_source or _default_news_source(),
-        options_source or _options_source_for(db, user),
+        options_source or options_source_for(db, user),
         include_options=include_options,
     )
 

@@ -21,8 +21,10 @@ from app.schemas.portfolio import (
     PositionOut,
     ReviewResponse,
     TradeOut,
+    TradePreview,
 )
 from app.services import alpaca_credentials as creds
+from app.services import market_data
 from app.services import portfolio as svc
 from app.services.data_sources.base import PriceDataSource
 from app.services.data_sources.yfinance_source import YFinancePriceSource
@@ -33,6 +35,14 @@ router = APIRouter(prefix="/portfolios", tags=["portfolio"])
 def get_price_source() -> PriceDataSource:
     """Indirection point so tests can swap in a fake price source."""
     return YFinancePriceSource()
+
+
+def _price_source(db, user: User) -> PriceDataSource:
+    """Alpaca-backed pricing (works on cloud IPs) when keys are available, else
+    the test/local seam. yfinance's price endpoint is blocked from Render."""
+    if market_data.alpaca_data_creds(db, user):
+        return market_data.price_source_for(db, user)
+    return get_price_source()
 
 
 def user_alpaca_broker(db, user: User):
@@ -86,20 +96,20 @@ def create_portfolio(body: PortfolioCreate, db: DbSession, user: CurrentUser) ->
 @router.get("/{portfolio_id}", response_model=PortfolioSummary)
 def get_portfolio(portfolio_id: UUID, db: DbSession, user: CurrentUser) -> PortfolioSummary:
     pf = _owned(db, user, portfolio_id)
-    return svc.summarize(db, pf, get_price_source(), _broker_for(pf, db, user))
+    return svc.summarize(db, pf, _price_source(db, user), _broker_for(pf, db, user))
 
 
 @router.get("/{portfolio_id}/positions", response_model=list[PositionOut])
 def get_positions(portfolio_id: UUID, db: DbSession, user: CurrentUser) -> list[PositionOut]:
     pf = _owned(db, user, portfolio_id)
-    svc.sync_portfolio_state(db, pf, get_price_source(), _broker_for(pf, db, user))
+    svc.sync_portfolio_state(db, pf, _price_source(db, user), _broker_for(pf, db, user))
     return svc.positions_out(pf)
 
 
 @router.get("/{portfolio_id}/allocation", response_model=AllocationOut)
 def get_allocation(portfolio_id: UUID, db: DbSession, user: CurrentUser) -> AllocationOut:
     pf = _owned(db, user, portfolio_id)
-    svc.sync_portfolio_state(db, pf, get_price_source(), _broker_for(pf, db, user))
+    svc.sync_portfolio_state(db, pf, _price_source(db, user), _broker_for(pf, db, user))
     return svc.allocation(pf)
 
 
@@ -115,7 +125,7 @@ def accept_trade(
     portfolio_id: UUID, body: AcceptTradeRequest, db: DbSession, user: CurrentUser
 ) -> TradeOut:
     pf = _owned(db, user, portfolio_id)
-    price_source = get_price_source()
+    price_source = _price_source(db, user)
     if pf.broker == "alpaca":
         execution = user_alpaca_broker(db, user)
         if execution is None:
@@ -141,13 +151,30 @@ def accept_trade(
     )
 
 
+@router.get("/{portfolio_id}/trades/preview/{recommendation_id}", response_model=TradePreview)
+def preview_trade(
+    portfolio_id: UUID, recommendation_id: UUID, db: DbSession, user: CurrentUser
+) -> TradePreview:
+    """Auto-sized preview of a paper trade (suggested quantity, cost, weight)."""
+    pf = _owned(db, user, portfolio_id)
+    try:
+        preview = svc.preview_trade(
+            db, pf, recommendation_id, _price_source(db, user), _broker_for(pf, db, user)
+        )
+    except svc.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except (svc.TradeRejected, svc.PortfolioError) as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    return TradePreview(**preview)
+
+
 @router.post("/{portfolio_id}/sync", response_model=PortfolioSummary)
 def sync_portfolio(portfolio_id: UUID, db: DbSession, user: CurrentUser) -> PortfolioSummary:
     pf = _owned(db, user, portfolio_id)
-    return svc.summarize(db, pf, get_price_source(), _broker_for(pf, db, user))
+    return svc.summarize(db, pf, _price_source(db, user), _broker_for(pf, db, user))
 
 
 @router.post("/{portfolio_id}/review", response_model=ReviewResponse)
 def review_portfolio(portfolio_id: UUID, db: DbSession, user: CurrentUser) -> ReviewResponse:
     pf = _owned(db, user, portfolio_id)
-    return svc.review_holdings(db, pf, get_price_source(), _broker_for(pf, db, user))
+    return svc.review_holdings(db, pf, _price_source(db, user), _broker_for(pf, db, user))

@@ -52,6 +52,7 @@ class BrokerPosition:
     current_price: float
     market_value: float
     unrealized_pl: float
+    asset_type: str = "stock"  # "stock" | "option"
 
 
 class ExecutionError(RuntimeError):

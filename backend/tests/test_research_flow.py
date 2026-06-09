@@ -63,12 +63,14 @@ def test_bullish_inputs_lean_buy(db_session):
 
 def test_research_route_returns_recommendation(db_session, monkeypatch):
     # Route uses default yfinance sources; swap all of them for fakes (no network).
-    monkeypatch.setattr("app.services.research.YFinancePriceSource", FakeUptrendSource)
+    # Price/options sources are built by app.services.market_data; fundamentals/news
+    # still come from app.services.research.
+    monkeypatch.setattr("app.services.market_data.YFinancePriceSource", FakeUptrendSource)
+    monkeypatch.setattr("app.services.market_data.YFinanceOptionsSource", FakeOptionsSource)
     monkeypatch.setattr(
         "app.services.research.YFinanceFundamentalsSource", FakeFundamentalsSource
     )
     monkeypatch.setattr("app.services.research.YFinanceNewsSource", FakeNewsSource)
-    monkeypatch.setattr("app.services.research.YFinanceOptionsSource", FakeOptionsSource)
     app.dependency_overrides[get_db] = lambda: db_session
     try:
         client = TestClient(app)

@@ -94,6 +94,10 @@ class AlpacaPaperExecution:
             raise ExecutionError(f"alpaca get_positions failed: {exc}") from exc
         out: list[BrokerPosition] = []
         for p in raw:
+            # asset_class is an AssetClass enum ("us_equity" | "us_option").
+            asset_class = getattr(getattr(p, "asset_class", None), "value", None) or str(
+                getattr(p, "asset_class", "")
+            )
             out.append(BrokerPosition(
                 symbol=str(p.symbol),
                 quantity=_f(p.qty),
@@ -101,6 +105,7 @@ class AlpacaPaperExecution:
                 current_price=_f(getattr(p, "current_price", None)),
                 market_value=_f(getattr(p, "market_value", None)),
                 unrealized_pl=_f(getattr(p, "unrealized_pl", None)),
+                asset_type="option" if "option" in asset_class else "stock",
             ))
         return out
 
@@ -111,6 +116,10 @@ class AlpacaPaperExecution:
             from alpaca.trading.enums import OrderSide, TimeInForce
             from alpaca.trading.requests import MarketOrderRequest
 
+            # Options use the same market-order path: the symbol is the OCC contract
+            # symbol and qty is the number of contracts (Alpaca applies the 100x
+            # multiplier to buying power). Requires options trading enabled on the
+            # account (see the error hint below if it isn't).
             req = MarketOrderRequest(
                 symbol=order.symbol,
                 qty=order.quantity,
@@ -137,4 +146,12 @@ class AlpacaPaperExecution:
             raise
         except Exception as exc:  # noqa: BLE001 - translate broker SDK errors
             logger.warning("alpaca order failed for %s: %s", order.symbol, exc)
-            raise ExecutionError(f"alpaca order failed for {order.symbol}: {exc}") from exc
+            hint = ""
+            if order.asset_type == "option" and "option" in str(exc).lower():
+                hint = (
+                    " — enable options trading on your Alpaca paper account "
+                    "(Account → Configure → Options) and try again"
+                )
+            raise ExecutionError(
+                f"alpaca order failed for {order.symbol}: {exc}{hint}"
+            ) from exc

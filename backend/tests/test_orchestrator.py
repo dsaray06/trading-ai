@@ -53,6 +53,32 @@ def test_failing_source_abstains_but_run_succeeds():
     assert decision.action
 
 
+def test_etf_fundamental_abstains_with_friendly_message():
+    # For an ETF, the fundamental agent sits out by design with a clear message —
+    # not a raw "all sources failed" dump — and never hits the data source.
+    decision, _ = run_pipeline(
+        "SPY", "etf", FakeUptrendSource(), FailingSource(),
+        FakeNewsSource(), FakeOptionsSource(),
+    )
+    fundamental = next(v for v in decision.agent_votes if v.agent == "fundamental")
+    assert fundamental.abstain is True
+    assert "ETF" in fundamental.reasoning
+    assert "failed" not in fundamental.reasoning.lower()
+
+
+def test_missing_fundamentals_message_mentions_etfs():
+    # When the data source has no fundamentals (e.g. an ETF researched as a stock),
+    # the abstain message stays friendly and explains why.
+    decision, _ = run_pipeline(
+        "SPY", "stock", FakeUptrendSource(), FailingSource(),
+        FakeNewsSource(), FakeOptionsSource(),
+    )
+    fundamental = next(v for v in decision.agent_votes if v.agent == "fundamental")
+    assert fundamental.abstain is True
+    assert "ETF" in fundamental.reasoning
+    assert "boom" not in fundamental.reasoning  # raw source error not surfaced
+
+
 def test_determinism_of_decision():
     d1, _ = _run()
     d2, _ = _run()

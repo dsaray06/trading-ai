@@ -123,12 +123,13 @@ class FakeAlpacaBroker:
 
         price = reference_price or 100.0
         self.orders.append(order)
+        mult = 100 if order.asset_type == "option" else 1
         if order.side == "buy":
-            self._cash -= order.quantity * price
+            self._cash -= order.quantity * price * mult
             self._positions.append(BrokerPosition(
                 symbol=order.symbol, quantity=order.quantity, avg_cost=price,
-                current_price=price, market_value=order.quantity * price,
-                unrealized_pl=0.0,
+                current_price=price, market_value=order.quantity * price * mult,
+                unrealized_pl=0.0, asset_type=order.asset_type,
             ))
         else:
             self._cash += order.quantity * price

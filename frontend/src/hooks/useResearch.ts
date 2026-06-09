@@ -3,7 +3,7 @@
 import axios from "axios";
 import { useCallback, useState } from "react";
 import { researchTicker } from "@/api/client";
-import type { Recommendation } from "@/types/research";
+import type { AssetType, Recommendation } from "@/types/research";
 
 interface ResearchState {
   data: Recommendation | null;
@@ -18,12 +18,16 @@ export function useResearch() {
     error: null,
   });
 
-  const run = useCallback(async (ticker: string, includeOptions = false) => {
+  const run = useCallback(
+    async (ticker: string, includeOptions = false, assetType: AssetType = "stock") => {
     const symbol = ticker.trim().toUpperCase();
     if (!symbol) return;
     setState({ data: null, loading: true, error: null });
     try {
-      const data = await researchTicker(symbol, { include_options: includeOptions });
+      const data = await researchTicker(symbol, {
+        include_options: includeOptions,
+        asset_type: assetType,
+      });
       setState({ data, loading: false, error: null });
     } catch (err) {
       let message = "Something went wrong running research.";
@@ -34,7 +38,9 @@ export function useResearch() {
       }
       setState({ data: null, loading: false, error: message });
     }
-  }, []);
+  },
+    [],
+  );
 
   return { ...state, run };
 }

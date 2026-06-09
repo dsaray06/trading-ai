@@ -6,6 +6,7 @@ import type {
   Position,
   ReviewResponse,
   Trade,
+  TradePreview,
 } from "@/types/portfolio";
 
 export async function listPortfolios(): Promise<Portfolio[]> {
@@ -43,6 +44,17 @@ export async function acceptTrade(
       recommendation_id,
       quantity,
     })
+  ).data;
+}
+
+export async function previewTrade(
+  id: string,
+  recommendation_id: string,
+): Promise<TradePreview> {
+  return (
+    await api.get<TradePreview>(
+      `/portfolios/${id}/trades/preview/${recommendation_id}`,
+    )
   ).data;
 }
 

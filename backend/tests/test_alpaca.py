@@ -102,14 +102,23 @@ def test_accept_via_alpaca_submits_and_resyncs(db_session):
     assert float(pf.cash_balance) == 100_000 - 5 * 200
 
 
-def test_options_rejected_on_alpaca_portfolio(db_session):
+def test_options_submit_on_alpaca_portfolio(db_session):
+    # Options now route through Alpaca (OCC contract symbol, 100x multiplier),
+    # rather than being rejected outright.
     broker = FakeAlpacaBroker()
     pf = svc.create_portfolio(db_session, _user(db_session), "Alpaca", 0,
                               broker="alpaca", alpaca_broker=broker)
     rec = _rec(db_session, "NVDA250101C00100000", "Buy Call", 5.0, asset_type="option")
-    with pytest.raises(svc.TradeRejected):
-        svc.accept_recommendation(db_session, pf, rec.id, 1, None, FakeUptrendSource(),
-                                  broker)
+    trade = svc.accept_recommendation(
+        db_session, pf, rec.id, 1, None, FakeUptrendSource(), broker
+    )
+    assert trade.side == "buy" and trade.asset_type == "option"
+    assert broker.orders and broker.orders[0].asset_type == "option"
+    # Position mirrored back from Alpaca is marked as an option.
+    pos = next(p for p in pf.positions if p.symbol == "NVDA250101C00100000")
+    assert pos.asset_type == "option"
+    # One contract at $5 premium x100 multiplier = $500 of cash used.
+    assert float(pf.cash_balance) == 100_000 - 5 * 100
 
 
 # ---- HTTP flows -----------------------------------------------------------

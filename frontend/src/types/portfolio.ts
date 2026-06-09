@@ -46,6 +46,19 @@ export interface Trade {
   executed_at: string;
 }
 
+export interface TradePreview {
+  side: string;
+  symbol: string;
+  asset_type: string;
+  suggested_quantity: number;
+  price: number;
+  multiplier: number;
+  estimated_cost: number;
+  pct_of_portfolio: number;
+  cash_balance: number;
+  note: string;
+}
+
 export interface HoldingReviewItem {
   symbol: string;
   action: string;

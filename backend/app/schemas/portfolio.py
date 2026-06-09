@@ -54,6 +54,21 @@ class AcceptTradeRequest(BaseModel):
     override_price: float | None = Field(default=None, gt=0)
 
 
+class TradePreview(BaseModel):
+    """What an auto-sized paper trade would look like, before the user commits."""
+
+    side: str
+    symbol: str
+    asset_type: str
+    suggested_quantity: float
+    price: float           # per share, or per-contract premium for options
+    multiplier: int        # 100 for options, 1 otherwise
+    estimated_cost: float  # quantity * price * multiplier
+    pct_of_portfolio: float
+    cash_balance: float
+    note: str
+
+
 class PortfolioSummary(BaseModel):
     id: UUID
     name: str

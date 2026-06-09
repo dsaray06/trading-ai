@@ -86,11 +86,20 @@ POST /portfolios/{id}/review           → run Holdings Review across all positi
 
 ### Accept a recommendation (paper trade)
 ```
+GET  /portfolios/{id}/trades/preview/{recommendation_id}
+  → 200 { side, symbol, asset_type, suggested_quantity, price, multiplier,
+          estimated_cost, pct_of_portfolio, cash_balance, note }
+          # read-only auto-sizing preview; tells the user how much to buy
+
 POST /portfolios/{id}/trades
   body: { recommendation_id, quantity?, override_price? }
   → 201 { trade }       # submits an Alpaca PAPER order, syncs position
+                        # equities and options both supported (options need
+                        # options trading enabled on the user's Alpaca account)
 ```
-Must be idempotent on `recommendation_id` (don't double-submit).
+Must be idempotent on `recommendation_id` (don't double-submit). When `quantity`
+is omitted the server auto-sizes (fixed-fractional risk + cash cap), matching the
+preview endpoint.
 
 ```
 POST /portfolios/{id}/sync   → pull positions/cash from Alpaca paper account
