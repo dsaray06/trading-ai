@@ -78,8 +78,8 @@ The destination is the full vision in `docs/00-overview.md`. The path is increme
 
 ## Phase 6 — Cloud deploy + hardening
 **Goal:** make it production-shaped.
-- Containerized deploy: backend on **EC2**, Postgres on **RDS**, exports/artifacts on **S3**.
-- GitHub Actions: build + deploy on merge to main.
+- Containerized deploy on **Render** (Blueprint): Docker backend + managed Postgres + static frontend.
+- GitHub Actions CI; Render auto-deploys on merge to main.
 - OAuth 2.0 login; secrets via env/secret manager; rate-limit + retry on data sources; structured logging/metrics.
 - A persistent disclaimer surface in the UI and API.
 

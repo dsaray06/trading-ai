@@ -17,7 +17,7 @@ Unlike a traditional stock screener or trading dashboard, Trading AI functions a
 - Build a production-grade full-stack application.
 - Implement multi-agent orchestration using LangGraph.
 - Develop scalable cloud-based data pipelines.
-- Deploy containerized services on AWS.
+- Deploy containerized services to the cloud (Render).
 - Integrate with a paper-trading execution platform (Alpaca).
 - Implement financial backtesting infrastructure.
 - Integrate Claude into real-world workflows.
@@ -38,7 +38,7 @@ Unlike a traditional stock screener or trading dashboard, Trading AI functions a
 These decisions were made during planning and the rest of the docs assume them:
 
 1. **Execution via Alpaca paper trading, not a custom engine.** The original concept floated a custom paper-trading engine. We instead integrate Alpaca's free paper-trading API for realistic simulated fills, position tracking, and portfolio sync. This keeps the project focused on its differentiator — multi-agent research — while still demonstrating brokerage-API integration. A custom fill simulator is listed as an optional later enhancement. See `docs/06-data-sources.md`.
-2. **MVP-first, phased build.** The full vision (7 agents, options, AWS, backtesting, ML) is the destination, not the first deliverable. The roadmap in `docs/07-roadmap.md` defines a shippable core first and layers ambition on top.
+2. **MVP-first, phased build.** The full vision (7 agents, options, cloud deploy, backtesting, ML) is the destination, not the first deliverable. The roadmap in `docs/07-roadmap.md` defines a shippable core first and layers ambition on top.
 3. **Explainability is non-negotiable.** Every recommendation carries per-agent votes and a reasoning report.
 
 ## What to read next

@@ -89,7 +89,7 @@ System of record for users, portfolios, positions, trades, recommendations, agen
 
 - **Local:** `docker-compose` runs Postgres + backend + frontend.
 - **CI:** GitHub Actions runs ruff, pytest, and the frontend type-check on every PR.
-- **Cloud (later phase):** backend container on **EC2**, managed Postgres on **RDS**, artifacts/exports on **S3**. Keep deploy concerns out of the MVP; see `docs/07-roadmap.md` Phase 6.
+- **Cloud:** deployed on **Render** from a single Blueprint (`render.yaml`) — managed **PostgreSQL**, the **FastAPI backend** as a Docker service, and the **React frontend** as a static site. Auto-deploys on every push to `main`. See `docs/07-roadmap.md` Phase 6.
 
 ## Non-functional notes
 
