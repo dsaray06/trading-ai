@@ -22,6 +22,12 @@ from app.services.data_sources.base import (
 
 logger = get_logger(__name__)
 _cache = TTLCache(ttl_seconds=3600.0)
+# Symbol classification rarely changes — cache it for a day.
+_class_cache = TTLCache(ttl_seconds=86_400.0)
+
+# Finnhub `type` values that denote a fund / exchange-traded product (not a company
+# with reportable fundamentals). Common Stock / ADR / REIT stay "stock".
+_FUND_TYPES = ("ETP", "ETF", "ETN", "FUND", "UNIT", "CLOSED-END")
 
 
 def make_client():
@@ -32,6 +38,37 @@ def make_client():
     import finnhub
 
     return finnhub.Client(api_key=settings.finnhub_api_key)
+
+
+def classify_symbol(symbol: str) -> str | None:
+    """Best-effort asset classification via Finnhub symbol lookup.
+
+    Returns "etf" for funds / exchange-traded products, "stock" for equities, or
+    None when it can't be determined (no Finnhub key, network error, or no exact
+    match). Lets research auto-detect ETFs (which have no company fundamentals) so
+    the user doesn't have to tag them by hand. Cached for a day.
+    """
+    symbol = symbol.upper().strip()
+    cache_key = f"fh-class:{symbol}"
+    cached = _class_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        client = make_client()
+        result = (client.symbol_lookup(symbol) or {}).get("result", [])
+    except DataSourceError:
+        return None  # no key configured
+    except Exception as exc:  # noqa: BLE001 - classification is best-effort
+        logger.warning("finnhub symbol lookup failed for %s: %s", symbol, exc)
+        return None
+    match = next((r for r in result if (r.get("symbol") or "").upper() == symbol), None)
+    if match is None:
+        return None
+    type_ = (match.get("type") or "").upper()
+    classified = "etf" if any(k in type_ for k in _FUND_TYPES) else "stock"
+    _class_cache.set(cache_key, classified)
+    logger.info("classified %s as %s (finnhub type=%r)", symbol, classified, type_)
+    return classified
 
 
 def _f(value) -> float | None:

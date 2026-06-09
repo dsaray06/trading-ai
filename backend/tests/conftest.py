@@ -3,9 +3,14 @@ from __future__ import annotations
 
 import os
 
-# Ensure config doesn't pick up a real .env or require secrets during tests.
+# Ensure config doesn't pick up a real .env or require secrets during tests, and
+# that no test makes a real network call to a keyed data provider.
 os.environ.setdefault("ANTHROPIC_API_KEY", "")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
+os.environ.setdefault("FINNHUB_API_KEY", "")
+os.environ.setdefault("POLYGON_API_KEY", "")
+os.environ.setdefault("ALPACA_API_KEY", "")
+os.environ.setdefault("ALPACA_API_SECRET", "")
 
 import pytest
 from sqlalchemy import create_engine

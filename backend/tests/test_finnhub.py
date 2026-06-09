@@ -35,6 +35,14 @@ class FakeFinnhubClient:
         return [{"period": "2025-01-01", "strongBuy": 8, "buy": 12, "hold": 4,
                  "sell": 1, "strongSell": 0}]
 
+    def symbol_lookup(self, query):
+        rows = {
+            "SPY": {"symbol": "SPY", "type": "ETP", "description": "SPDR S&P 500 ETF"},
+            "AAPL": {"symbol": "AAPL", "type": "Common Stock", "description": "Apple"},
+        }
+        match = rows.get(query.upper())
+        return {"count": 1, "result": [match]} if match else {"result": []}
+
 
 def test_finnhub_fundamentals_mapping(monkeypatch):
     monkeypatch.setattr(fh, "make_client", lambda: FakeFinnhubClient())
@@ -63,6 +71,23 @@ def test_finnhub_requires_key(monkeypatch):
     monkeypatch.setattr(fh, "make_client", no_key)
     with pytest.raises(DataSourceError):
         fh.FinnhubFundamentalsSource().get_fundamentals("ZZZ")  # uncached symbol
+
+
+def test_classify_symbol_detects_etf_vs_stock(monkeypatch):
+    monkeypatch.setattr(fh, "make_client", lambda: FakeFinnhubClient())
+    fh._class_cache.clear()
+    assert fh.classify_symbol("SPY") == "etf"   # type "ETP"
+    assert fh.classify_symbol("AAPL") == "stock"  # type "Common Stock"
+    assert fh.classify_symbol("ZZZZ") is None     # no match -> undetermined
+
+
+def test_classify_symbol_none_without_key(monkeypatch):
+    def no_key():
+        raise DataSourceError("Finnhub API key not configured")
+
+    monkeypatch.setattr(fh, "make_client", no_key)
+    fh._class_cache.clear()
+    assert fh.classify_symbol("SPY") is None
 
 
 def test_chain_falls_back_to_second_source():

@@ -34,6 +34,7 @@ from app.services.data_sources.chained import (
 from app.services.data_sources.finnhub_source import (
     FinnhubFundamentalsSource,
     FinnhubNewsSource,
+    classify_symbol,
 )
 from app.services.data_sources.yfinance_source import (
     YFinanceFundamentalsSource,
@@ -88,11 +89,18 @@ def run_research(
 ) -> RecommendationResponse:
     """Produce, persist, and return a multi-agent recommendation for `ticker`."""
     ticker = ticker.upper().strip()
-    include_options = request.include_options or request.asset_type == "option"
+
+    # Auto-detect ETFs/funds (no company fundamentals) so the user doesn't have to
+    # tag them. Only upgrades an unspecified "stock"; an explicit etf/option stands.
+    asset_type = request.asset_type
+    if asset_type == "stock" and classify_symbol(ticker) == "etf":
+        asset_type = "etf"
+
+    include_options = request.include_options or asset_type == "option"
 
     decision, analysis = run_pipeline(
         ticker,
-        request.asset_type,
+        asset_type,
         price_source or price_source_for(db, user),
         fundamentals_source or _default_fundamentals_source(),
         news_source or _default_news_source(),
@@ -110,7 +118,7 @@ def run_research(
     is_option = decision.action in _OPTIONS_ACTIONS
     opts = analysis.get("options", {}) if is_option else {}
     rec_symbol = opts.get("contract_symbol") or ticker if is_option else ticker
-    rec_asset_type = "option" if is_option else request.asset_type
+    rec_asset_type = "option" if is_option else asset_type
 
     rec = Recommendation(
         symbol=rec_symbol,
