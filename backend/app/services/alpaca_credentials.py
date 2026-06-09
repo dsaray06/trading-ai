@@ -79,8 +79,8 @@ def delete_credential(db: Session, user: User) -> None:
         db.commit()
 
 
-def broker_for_user(db: Session, user: User):
-    """An Alpaca broker bound to this user's keys, or None if not connected."""
+def raw_credentials(db: Session, user: User) -> tuple[str, str] | None:
+    """The user's (api_key, api_secret) decrypted, or None. For data-API calls."""
     cred = get_credential(db, user)
     if cred is None:
         return None
@@ -88,7 +88,15 @@ def broker_for_user(db: Session, user: User):
     if secret is None:
         logger.warning("could not decrypt alpaca secret for user %s", user.id)
         return None
+    return cred.api_key, secret
+
+
+def broker_for_user(db: Session, user: User):
+    """An Alpaca broker bound to this user's keys, or None if not connected."""
+    creds = raw_credentials(db, user)
+    if creds is None:
+        return None
     try:
-        return _build_broker(cred.api_key, secret)
+        return _build_broker(*creds)
     except ExecutionError:
         return None

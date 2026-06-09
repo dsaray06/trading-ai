@@ -39,6 +39,15 @@ services:
         value: INFO
       - key: ALPACA_BASE_URL   # paper host only — never live
         value: https://paper-api.alpaca.markets
+      # Server-wide Alpaca key for MARKET DATA (prices + option chains). Alpaca's
+      # IEX/indicative feeds work with any single account's keys (like Finnhub) and
+      # work from cloud IPs where yfinance is blocked — so this one key powers the
+      # Research/Options tabs for everyone. Users still connect their OWN keys for
+      # the Portfolio tab (paper trading). Set both in the dashboard (secret).
+      - key: ALPACA_API_KEY
+        sync: false
+      - key: ALPACA_API_SECRET
+        sync: false
       # Set to the frontend's PUBLIC url after first deploy, e.g.
       # https://trading-ai-frontend-xxxx.onrender.com (fromService host gives the
       # internal hostname, which a browser can't use).

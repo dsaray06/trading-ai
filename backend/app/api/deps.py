@@ -40,5 +40,23 @@ def get_current_user(
     return user
 
 
+def get_optional_user(
+    db: Annotated[Session, Depends(get_db)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> User | None:
+    """Resolve the user if a valid Bearer JWT is present, else None (no 401)."""
+    if credentials is None:
+        return None
+    subject = decode_token(credentials.credentials)
+    if subject is None:
+        return None
+    try:
+        user_id = UUID(subject)
+    except ValueError:
+        return None
+    return db.get(User, user_id)
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 DbSession = Annotated[Session, Depends(get_db)]

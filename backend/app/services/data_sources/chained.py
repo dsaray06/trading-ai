@@ -15,6 +15,8 @@ from app.services.data_sources.base import (
     NewsSource,
     OptionChain,
     OptionsSource,
+    PriceBar,
+    PriceDataSource,
     SentimentData,
 )
 
@@ -26,6 +28,20 @@ def _combined_error(
 ) -> DataSourceError:
     parts = "; ".join(f"{name}: {err}" for name, err in errors)
     return DataSourceError(f"all {label} sources failed for {symbol} — {parts}")
+
+
+class ChainedPriceSource:
+    def __init__(self, sources: list[PriceDataSource]) -> None:
+        self._sources = sources
+
+    def get_daily_bars(self, symbol: str, lookback_days: int = 365) -> list[PriceBar]:
+        errors: list[tuple[str, Exception]] = []
+        for source in self._sources:
+            try:
+                return source.get_daily_bars(symbol, lookback_days)
+            except DataSourceError as exc:
+                errors.append((type(source).__name__, exc))
+        raise _combined_error("price", symbol, errors)
 
 
 class ChainedFundamentalsSource:
