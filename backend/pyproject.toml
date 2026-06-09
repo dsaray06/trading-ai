@@ -13,3 +13,6 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Put the backend root on sys.path so `import app` works under the bare `pytest`
+# console script in CI (not just `python -m pytest`, which adds the CWD itself).
+pythonpath = ["."]
