@@ -11,6 +11,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import run_pipeline
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.recommendation import AgentVoteRow, Recommendation
 from app.schemas.research import (
@@ -25,6 +26,14 @@ from app.services.data_sources.base import (
     OptionsSource,
     PriceDataSource,
 )
+from app.services.data_sources.chained import (
+    ChainedFundamentalsSource,
+    ChainedNewsSource,
+)
+from app.services.data_sources.finnhub_source import (
+    FinnhubFundamentalsSource,
+    FinnhubNewsSource,
+)
 from app.services.data_sources.yfinance_source import (
     YFinanceFundamentalsSource,
     YFinanceNewsSource,
@@ -35,6 +44,21 @@ from app.services.data_sources.yfinance_source import (
 logger = get_logger(__name__)
 
 _OPTIONS_ACTIONS = {"Buy Call", "Buy Put"}
+
+
+def _default_fundamentals_source() -> FundamentalsSource:
+    """Finnhub primary (works on cloud), yfinance fallback — if Finnhub is keyed."""
+    if get_settings().finnhub_api_key:
+        return ChainedFundamentalsSource(
+            [FinnhubFundamentalsSource(), YFinanceFundamentalsSource()]
+        )
+    return YFinanceFundamentalsSource()
+
+
+def _default_news_source() -> NewsSource:
+    if get_settings().finnhub_api_key:
+        return ChainedNewsSource([FinnhubNewsSource(), YFinanceNewsSource()])
+    return YFinanceNewsSource()
 
 
 class ResearchError(RuntimeError):
@@ -69,8 +93,8 @@ def run_research(
         ticker,
         request.asset_type,
         price_source or YFinancePriceSource(),
-        fundamentals_source or YFinanceFundamentalsSource(),
-        news_source or YFinanceNewsSource(),
+        fundamentals_source or _default_fundamentals_source(),
+        news_source or _default_news_source(),
         options_source or YFinanceOptionsSource(),
         include_options=include_options,
     )

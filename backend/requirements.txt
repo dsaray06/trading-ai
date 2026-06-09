@@ -21,9 +21,10 @@ anthropic
 langgraph
 langchain-core
 
-# Market data (yfinance is the MVP data layer; Polygon/Finnhub/SEC-EDGAR are
-# future providers — add back when wired in)
+# Market data — yfinance for prices; Finnhub for fundamentals + news/analysts
+# (works from cloud IPs, where yfinance's info/news endpoints get blocked).
 yfinance
+finnhub-python
 requests
 httpx
 
