@@ -29,11 +29,13 @@ from app.services.data_sources.base import (
 from app.services.data_sources.chained import (
     ChainedFundamentalsSource,
     ChainedNewsSource,
+    ChainedOptionsSource,
 )
 from app.services.data_sources.finnhub_source import (
     FinnhubFundamentalsSource,
     FinnhubNewsSource,
 )
+from app.services.data_sources.polygon_source import PolygonOptionsSource
 from app.services.data_sources.yfinance_source import (
     YFinanceFundamentalsSource,
     YFinanceNewsSource,
@@ -59,6 +61,13 @@ def _default_news_source() -> NewsSource:
     if get_settings().finnhub_api_key:
         return ChainedNewsSource([FinnhubNewsSource(), YFinanceNewsSource()])
     return YFinanceNewsSource()
+
+
+def _default_options_source() -> OptionsSource:
+    """Polygon primary (works on cloud), yfinance fallback — if Polygon is keyed."""
+    if get_settings().polygon_api_key:
+        return ChainedOptionsSource([PolygonOptionsSource(), YFinanceOptionsSource()])
+    return YFinanceOptionsSource()
 
 
 class ResearchError(RuntimeError):
@@ -95,7 +104,7 @@ def run_research(
         price_source or YFinancePriceSource(),
         fundamentals_source or _default_fundamentals_source(),
         news_source or _default_news_source(),
-        options_source or YFinanceOptionsSource(),
+        options_source or _default_options_source(),
         include_options=include_options,
     )
 

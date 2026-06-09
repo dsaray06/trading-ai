@@ -11,6 +11,8 @@ from app.services.data_sources.base import (
     Fundamentals,
     FundamentalsSource,
     NewsSource,
+    OptionChain,
+    OptionsSource,
     SentimentData,
 )
 
@@ -45,3 +47,18 @@ class ChainedNewsSource:
                 last = exc
                 continue
         raise last or DataSourceError(f"no news source for {symbol}")
+
+
+class ChainedOptionsSource:
+    def __init__(self, sources: list[OptionsSource]) -> None:
+        self._sources = sources
+
+    def get_option_chain(self, symbol: str, target_dte: int = 30) -> OptionChain:
+        last: DataSourceError | None = None
+        for source in self._sources:
+            try:
+                return source.get_option_chain(symbol, target_dte)
+            except DataSourceError as exc:
+                last = exc
+                continue
+        raise last or DataSourceError(f"no options source for {symbol}")
