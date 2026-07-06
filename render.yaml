@@ -1,13 +1,7 @@
-# Render Blueprint — deploys the whole app: managed Postgres + FastAPI backend
+# Render Blueprint — deploys the whole app: FastAPI backend
 # (Docker) + static React frontend. Connect this repo as a Blueprint in Render.
 #
 # Assumes the GitHub repo root is this `trading-ai/` directory.
-
-databases:
-  - name: trading-ai-db
-    plan: free
-    databaseName: tradingai
-    user: tradingai
 
 services:
   # ---- Backend (FastAPI, Docker) ----
@@ -20,10 +14,11 @@ services:
     healthCheckPath: /health
     # The image CMD (backend/start.sh) runs migrations then serves on $PORT.
     envVars:
+      # Neon Postgres (free tier) — set the connection string in the dashboard.
+      # The Render free database expired; Neon auto-suspends/wakes and the
+      # app's pool_pre_ping handles reconnects.
       - key: DATABASE_URL
-        fromDatabase:
-          name: trading-ai-db
-          property: connectionString
+        sync: false
       - key: SECRET_KEY        # encrypts users' Alpaca secrets — generated once, do not rotate
         generateValue: true
       - key: JWT_SECRET
